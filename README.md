@@ -1,3 +1,6 @@
-dockerize? - so can setup env vars
+TODO:
 get it on the cloud
-test it so it does what i want
+
+Use ngrok to test locally. Don't forget to update the webhook.
+
+This code needs major refactoring.

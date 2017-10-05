@@ -1,6 +1,7 @@
 'use strict';
 
 const Mongoose = require('mongoose');
+const Post = require('./posts-model');
 
 const Schema = new Mongoose.Schema({
     uid: {
@@ -8,15 +9,12 @@ const Schema = new Mongoose.Schema({
         unique: true,
         required: true
     },
-    name: {
-        type: String,
-    },
     queue: {
-        type: [{ type: Mongoose.Schema.ObjectId, ref: 'Post' }],
+        type: [Post.schema],
         default: []
     },
     list: {
-        type: [{ type: Mongoose.Schema.ObjectId, ref: 'Post' }],
+        type: [Post.schema],
         default: []
     },
 });

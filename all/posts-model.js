@@ -11,10 +11,6 @@ const Schema = new Mongoose.Schema({
         type: String, 
         required: true
     },
-    author: {
-        type: Mongoose.Schema.ObjectId, 
-        ref: 'User',
-    },
     create_date: {
         type: Date,
         default: Date.now

@@ -15,6 +15,10 @@ const db = Mongoose.connection;
 db.on('error', console.error.bind(console, 'Connection error'));
 db.once('open', () => { console.log('Connection with database succeeded'); });
 
+const Handlers = require('./all/handlers');
+const User = require('./all/users-model');
+const Post = require('./all/posts-model');
+
 // The rest of the code implements the routes for our Express server.
 let app = express();
 
@@ -25,14 +29,14 @@ app.use(bodyParser.urlencoded({
 
 // Webhook validation
 app.get('/webhook', function(req, res) {
-  if (req.query['hub.mode'] === 'subscribe' &&
-      req.query['hub.verify_token'] === process.env.VERIFY_TOKEN) {
-    console.log("Validating webhook");
-    res.status(200).send(req.query['hub.challenge']);
-  } else {
-    console.error("Failed validation. Make sure the validation tokens match.");
-    res.sendStatus(403);          
-  }
+  // if (req.query['hub.mode'] === 'subscribe' &&
+  //     req.query['hub.verify_token'] === process.env.VERIFY_TOKEN) {
+  //   console.log("Validating webhook");
+  res.status(200).send(req.query['hub.challenge']);
+  // } else {
+  //   console.error("Failed validation. Make sure the validation tokens match.");
+  //   res.sendStatus(403);          
+  // }
 });
 
 // Display the web page
@@ -76,36 +80,116 @@ app.post('/webhook', function (req, res) {
   }
 });
 
+function isNumeric(num) {
+  return !isNaN(num)
+}
+
 // Incoming events handling
-function receivedMessage(event) {
-  var senderID = event.sender.id;
+async function receivedMessage(event) {
+  var senderId = event.sender.id;
   var recipientID = event.recipient.id;
   var timeOfMessage = event.timestamp;
   var message = event.message;
 
   console.log("Received message for user %d and page %d at %d with message:", 
-    senderID, recipientID, timeOfMessage);
+    senderId, recipientID, timeOfMessage);
   console.log(JSON.stringify(message));
 
-  var messageId = message.mid;
+  // look for user, if new user, create new user
+  let user = await Handlers.getUser(senderId);
+  if (user == "BAD") {
+    user = await Handlers.createNewUser(senderId);
+    if (user == "BAD") {
+      sendTextMessage(senderID, "WE GOT PROBLEMS... TELL JOHN!");      
+    }
+  }
 
+  var messageId = message.mid;
   var messageText = message.text;
   var messageAttachments = message.attachments;
+  let messageText2 = messageText.split(" ");  
 
-  if (messageText) {
-    // If we receive a text message, check to see if it matches a keyword
-    // and send back the template example. Otherwise, just echo the text we received.
-    switch (messageText) {
-      case 'generic':
-        sendGenericMessage(senderID);
-        break;
-
-      default:
-        sendTextMessage(senderID, messageText);
+  if (messageText.length == 1 && (messageText == "q" || messageText == "l")) {
+    if (messageText == "q") {
+      sendTextMessage(user.uid, specialMessage(user.queue, "QUEUE"))      
     }
-  } else if (messageAttachments) {
-    sendTextMessage(senderID, "Message with attachment received");
+    if (messageText == "l") {
+      sendTextMessage(user.uid, specialMessage(user.list, "LIST"))      
+    }
   }
+
+  else if (messageText == "buyjohnicecream") {
+    User.find({}, (err, users) => {
+      if (err) {
+          return "BAD";
+      }
+      for (let user of users) {
+        sendTextMessage(user.uid, specialMessage(user.list, "LIST"))        
+      };
+    });
+  }
+
+  else if (messageText.length == 1 && isNumeric(messageText) && +messageText < user.queue.length) {
+    user.list.push(user.queue.splice(number, 1)[0]);
+    user.save((err, user) => {
+      sendTextMessage(user.uid, specialMessage(user.list, "LIST"))
+    });
+  }
+
+  else if (messageText2.length == 2 && messageText2[0] == "done") {
+    let option = messageText2[0];
+    let numeral = messageText2[1];
+    let number = +numeral;
+    if (isNumeric(numeral)) {
+      // if (option == "q" && number < user.queue.length) {
+      //   user.list.push(user.queue.splice(number, 1)[0]);
+      //   user.save((err, user) => {
+      //     sendTextMessage(user.uid, specialMessage(user.list, "LIST"))
+      //   });
+      // }
+      if (number < user.list.length) {
+        user.list.splice(number, 1);
+        user.save((err, user) => {
+          sendTextMessage(user.uid, specialMessage(user.list, "LIST"))
+        });    
+      }
+    }
+  }
+
+  else {
+    let post = new Post({
+      uid: senderId,
+      prayer: messageText
+    });
+    post.save((err, post) => {
+        if (err) {
+          return "BAD";
+        } else {
+          User.find({}, (err, users) => {
+              if (err) {
+                  return "BAD";
+              }
+              for (let user of users) {
+                user.queue.push(post);
+                user.save((err, user) => {
+                  sendTextMessage(user.uid, specialMessage(user.queue, "QUEUE"))
+                });
+              };
+          });
+        }
+    });
+  }
+}
+
+function specialMessage(queue, type) {
+  let message = type;
+  message += "\n";  
+  queue.forEach(function (item, i) {
+    message += i + ". ";
+    message += item.prayer;
+    message += "\n";
+  });
+  return message;
 }
 
 function receivedPostback(event) {
