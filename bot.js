@@ -39,7 +39,6 @@ app.get('/webhook', function(req, res) {
   // }
 });
 
-// Display the web page
 app.get('/', function(req, res) {
   res.writeHead(200, {'Content-Type': 'text/html'});
   res.write(messengerButton);
@@ -109,16 +108,16 @@ async function receivedMessage(event) {
   var messageAttachments = message.attachments;
   let messageText2 = messageText.split(" ");  
 
-  if (messageText.length == 1 && (messageText == "q" || messageText == "l")) {
-    if (messageText == "q") {
+  if (messageText.length == 1 && (messageText.toLowerCase() == "q" || messageText.toLowerCase() == "l")) {
+    if (messageText.toLowerCase() == "q") {
       sendTextMessage(user.uid, specialMessage(user.queue, "QUEUE"))      
     }
-    if (messageText == "l") {
+    if (messageText.toLowerCase() == "l") {
       sendTextMessage(user.uid, specialMessage(user.list, "LIST"))      
     }
   }
 
-  else if (messageText == "buyjohnicecream") {
+  else if (messageText == "heisenough") {
     User.find({}, (err, users) => {
       if (err) {
           return "BAD";
@@ -130,23 +129,18 @@ async function receivedMessage(event) {
   }
 
   else if (messageText.length == 1 && isNumeric(messageText) && +messageText < user.queue.length) {
+    let number = +messageText;    
     user.list.push(user.queue.splice(number, 1)[0]);
     user.save((err, user) => {
       sendTextMessage(user.uid, specialMessage(user.list, "LIST"))
     });
   }
 
-  else if (messageText2.length == 2 && messageText2[0] == "done") {
+  else if (messageText2.length == 2 && messageText2[0].toLowerCase() == "done") {
     let option = messageText2[0];
     let numeral = messageText2[1];
     let number = +numeral;
     if (isNumeric(numeral)) {
-      // if (option == "q" && number < user.queue.length) {
-      //   user.list.push(user.queue.splice(number, 1)[0]);
-      //   user.save((err, user) => {
-      //     sendTextMessage(user.uid, specialMessage(user.list, "LIST"))
-      //   });
-      // }
       if (number < user.list.length) {
         user.list.splice(number, 1);
         user.save((err, user) => {
